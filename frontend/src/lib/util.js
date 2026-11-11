@@ -7,7 +7,7 @@ export function hue(name) {
 export const familyColor = (name) => name ? `oklch(0.8 0.13 ${hue(name)})` : "var(--faint)";
 
 export function familyLabel(key) {
-  const fixed = { flux1: "FLUX.1", flux2: "FLUX.2", sdxl: "SDXL", "sd1.5": "SD 1.5", zimage: "Z-Image", ltx: "LTX Video" };
+  const fixed = { flux1: "FLUX.1", flux2: "FLUX.2", sdxl: "SDXL", "sd1.5": "SD 1.5", zimage: "Z-Image", ltx: "LTX Video", minimax: "MiniMax", hidream: "HiDream", seedvr: "SeedVR" };
   if (!key) return "Unknown model";
   if (fixed[key]) return fixed[key];
   const m = /^([a-z]+)([\d.]*)$/.exec(key);
