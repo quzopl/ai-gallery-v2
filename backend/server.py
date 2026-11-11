@@ -78,7 +78,7 @@ app = FastAPI(title="AI Gallery")
 # The API can read and write local files, so only this machine's own pages may
 # talk to it: reject foreign Host headers (DNS rebinding) and cross-origin
 # writes / WebSockets (CSRF).
-ALLOWED_HOSTS = {"127.0.0.1", "localhost", "[::1]", "testserver"} | {
+ALLOWED_HOSTS = {"127.0.0.1", "localhost", "[::1]"} | {
     h.strip() for h in os.environ.get("AI_GALLERY_ALLOWED_HOSTS", "").split(",") if h.strip()}
 
 

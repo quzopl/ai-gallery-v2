@@ -22,6 +22,7 @@ def _make_comfy_png(path: Path) -> None:
 def app_with_tmpdb(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """Świeży serwer z DB w tmp."""
     monkeypatch.setenv("AI_GALLERY_WORK_DIR", str(tmp_path / "work"))
+    monkeypatch.setenv("AI_GALLERY_ALLOWED_HOSTS", "testserver")
     import importlib, backend.server as srv_mod
     importlib.reload(srv_mod)
     yield TestClient(srv_mod.app), tmp_path
