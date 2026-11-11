@@ -203,6 +203,8 @@
   img.media { cursor: zoom-in; }
   .stage.zoom { overflow: auto; align-items: flex-start; justify-content: flex-start; }
   .stage.zoom img.media { max-width: none; max-height: none; cursor: zoom-out; }
+  /* zoomed: the stage scrolls, so overlays would sit on top of the picture */
+  .stage.zoom .pos, .stage.zoom .nav { display: none; }
   .nav {
     position: absolute; top: 50%; width: 46px; height: 76px; margin-top: -38px; border-radius: 12px;
     font-size: 34px; line-height: 1; color: #fff; background: rgba(0,0,0,.35); backdrop-filter: blur(10px);
