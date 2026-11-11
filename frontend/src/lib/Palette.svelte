@@ -10,6 +10,7 @@
 
   const all = $derived([
     { t: "Add folder", k: "Action", run: () => (S.picker = { mode: "library" }) },
+    { t: "Settings: hidden folders", k: "Action", run: () => (S.settings = true) },
     { t: "Look for new files", k: "Action", run: () => rescan(false) },
     { t: "Read all metadata again", k: "Action", run: () => rescan(true) },
     { t: "Clear all filters", k: "Action", run: clearFilters },

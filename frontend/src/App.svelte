@@ -1,13 +1,14 @@
 <script>
   import { flushSync } from "svelte";
   import { S, reload, loadLibraries, loadFacets, loadTags, connectWS, setFilter, clearFilters,
-           activeFilterCount, rescan, savePrefs } from "./lib/store.svelte.js";
+           activeFilterCount, rescan, savePrefs, loadHidden } from "./lib/store.svelte.js";
   import { familyLabel, shortModel, fmtCount, sourceLabel } from "./lib/util.js";
   import Grid from "./lib/Grid.svelte";
   import Sidebar from "./lib/Sidebar.svelte";
   import Viewer from "./lib/Viewer.svelte";
   import FolderPicker from "./lib/FolderPicker.svelte";
   import Palette from "./lib/Palette.svelte";
+  import Settings from "./lib/Settings.svelte";
 
   let grid = $state(null), viewer = $state(null), search = $state(null);
   let railOpen = $state(window.innerWidth > 900);
@@ -18,6 +19,7 @@
     loadFacets(); reload();
   });
   loadTags();
+  loadHidden();
   connectWS();
 
   function onSearch() {
@@ -57,7 +59,7 @@
   function onkey(e) {
     const mod = e.ctrlKey || e.metaKey;
     if (mod && e.key.toLowerCase() === "k") { e.preventDefault(); S.palette = !S.palette; return; }
-    if (S.palette || S.picker) { if (e.key === "Escape") { S.palette = false; S.picker = null; } return; }
+    if (S.palette || S.picker || S.settings) { if (e.key === "Escape") { S.palette = false; S.picker = null; S.settings = false; } return; }
     const typing = ["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName);
     if (typing) { if (e.key === "Escape") document.activeElement.blur(); return; }
     if (e.key === "/") { e.preventDefault(); search?.focus(); return; }
@@ -114,6 +116,7 @@
         <button class:on={S.view === "masonry"} onclick={() => { S.view = "masonry"; savePrefs(); }}>Masonry</button>
       </div>
       <input class="size" type="range" min="120" max="480" step="10" bind:value={S.tile} onchange={savePrefs} aria-label="Tile size" title="Tile size" />
+      <button class="btn icon" onclick={() => (S.settings = true)} title="Settings" aria-label="Settings">⚙</button>
       <button class="btn icon" onclick={(e) => rescan(e.shiftKey)} title="Look for new files (Shift+click: read all metadata again)">⟳</button>
     </div>
     {#if S.scan}
@@ -139,6 +142,7 @@
   {#if S.openId != null}<Viewer bind:this={viewer} onclose={close} />{/if}
   {#if S.picker}<FolderPicker />{/if}
   {#if S.palette}<Palette />{/if}
+  {#if S.settings}<Settings />{/if}
 
   <div class="toasts" aria-live="polite">
     {#each S.toasts as t (t.id)}<div class="toast glass" class:error={t.kind === "error"}>{t.msg}</div>{/each}

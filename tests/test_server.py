@@ -274,3 +274,29 @@ def test_symlink_outside_library_not_indexed(app_with_tmpdb) -> None:
     client.post("/api/libraries", json={"path": str(lib_path)})
     time.sleep(1.2)
     assert client.get("/api/images").json()["items"] == []
+
+
+def test_hide_folder_and_show_again(app_with_tmpdb) -> None:
+    import time
+    client, tmp_path = app_with_tmpdb
+    lib = tmp_path / "photos"; (lib / "tests").mkdir(parents=True); (lib / "keep").mkdir()
+    _make_comfy_png(lib / "tests" / "a.png"); _make_comfy_png(lib / "tests" / "b.png")
+    _make_comfy_png(lib / "keep" / "c.png")
+    client.post("/api/libraries", json={"path": str(lib)})
+    deadline = time.time() + 5
+    while time.time() < deadline and len(client.get("/api/images").json()["items"]) < 3:
+        time.sleep(0.2)
+    items = client.get("/api/images").json()["items"]
+    assert len(items) == 3
+    victim = next(i for i in items if i["rel_path"].startswith("tests/"))
+    r = client.post("/api/hidden", json={"image_id": victim["id"]})
+    assert r.status_code == 200 and r.json()["path"] == str(lib / "tests")
+    res = client.get("/api/images").json()
+    assert [i["rel_path"] for i in res["items"]] == ["keep/c.png"] and res["total"] == 1
+    assert client.get("/api/facets").json()["total"] == 1
+    assert client.get("/api/libraries").json()[0]["image_count"] == 1
+    hidden = client.get("/api/hidden").json()
+    assert len(hidden) == 1 and hidden[0]["count"] == 2
+    assert client.delete(f"/api/hidden/{hidden[0]['id']}").status_code == 200
+    assert client.get("/api/images").json()["total"] == 3
+    assert client.get("/api/hidden").json() == []

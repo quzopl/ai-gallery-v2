@@ -34,6 +34,13 @@ built interface is committed in `frontend/dist`.
   screen viewer with tile-to-viewer transition, filters by family / model /
   LoRA / tool / type / tag, command palette.
 
+## Hidden folders
+
+Open a file and press ⊘ to hide the folder it is in (subfolders included).
+Hidden files stay on disk and in the index but are left out of the grid,
+counts and filters. Settings (⚙) lists hidden folders with a "Show again"
+button, and also manages the folders in the gallery.
+
 ## Keys
 
 | Key | Action |

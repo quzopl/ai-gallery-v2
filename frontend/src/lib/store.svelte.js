@@ -20,6 +20,8 @@ export const S = $state({
   toasts: [],
   picker: null,           // {mode:'library'|'export', imageId}
   palette: false,
+  settings: false,
+  hidden: [],             // [{id, path, count}] folders left out of the gallery
 });
 
 export function savePrefs() {
@@ -98,6 +100,25 @@ export async function loadFacets() {
 }
 export async function loadTags() { S.tags = await api("/api/tags"); }
 
+export async function loadHidden() { S.hidden = await api("/api/hidden"); }
+function afterHiddenChange() { loadHidden(); loadLibraries(); loadFacets(); reload(); }
+
+export async function hideFolderOf(item) {
+  const lib = S.libraries.find((l) => l.id === item.library_id);
+  const dir = [lib?.path, ...item.rel_path.split("/").slice(0, -1)].filter(Boolean).join("/");
+  if (!confirm(`Hide this folder?\n\n${dir}\n\nIts files stay on disk and stop showing in the gallery. You can bring it back in Settings.`)) return false;
+  try {
+    await post("/api/hidden", { image_id: item.id });
+    toast("Folder hidden. Bring it back in Settings");
+    afterHiddenChange();
+    return true;
+  } catch (e) { fail(e); return false; }
+}
+export async function showFolderAgain(h) {
+  try { await del(`/api/hidden/${h.id}`); toast("Folder is showing again"); afterHiddenChange(); }
+  catch (e) { fail(e); }
+}
+
 export function setFilter(key, value) {
   if (key === "tags") {
     S.filters.tags = S.filters.tags.includes(value)
@@ -155,6 +176,7 @@ export function connectWS() {
     } else if (m.type === "image_added") refreshSoon();
     else if (m.type === "image_removed") { removeLocal(m.image_id); loadFacets(); }
     else if (m.type === "image_changed") window.dispatchEvent(new CustomEvent("aig:changed", { detail: m.image_id }));
+    else if (m.type === "hidden_changed") afterHiddenChange();
     else if (m.type === "family_learned") toast(`Learned a new model family: ${m.base}`);
   };
   ws.onclose = () => setTimeout(connectWS, 2000);

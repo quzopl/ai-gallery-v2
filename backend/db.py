@@ -124,6 +124,11 @@ def init_schema(db_path: Path) -> None:
     con.executescript("""
         CREATE INDEX IF NOT EXISTS idx_images_family ON images(family);
         CREATE INDEX IF NOT EXISTS idx_images_kind   ON images(media_kind);
+        CREATE TABLE IF NOT EXISTS hidden_folders (
+            id         INTEGER PRIMARY KEY,
+            path       TEXT NOT NULL UNIQUE,
+            created_at INTEGER NOT NULL
+        );
         CREATE TABLE IF NOT EXISTS model_bases (
             base       TEXT PRIMARY KEY,
             created_at INTEGER NOT NULL

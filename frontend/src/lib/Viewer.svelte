@@ -1,5 +1,5 @@
 <script>
-  import { S, setFilter, toast, fail, removeLocal, loadTags, loadFacets, loadMore } from "./store.svelte.js";
+  import { S, setFilter, toast, fail, removeLocal, loadTags, loadFacets, loadMore, hideFolderOf } from "./store.svelte.js";
   import { api, post, del, thumbUrl, fileUrl } from "./api.js";
   import { familyColor, familyLabel, shortModel, fmtDuration, fmtBytes, fmtDate, sourceLabel } from "./util.js";
 
@@ -61,6 +61,9 @@
       item.rel_path = r.new_rel_path; if (d) d.rel_path = r.new_rel_path; toast("Renamed");
     } catch (e) { fail(e); }
   }
+  async function hideFolder() {
+    if (await hideFolderOf(item)) onclose();
+  }
   export function exportIt() { if (item) S.picker = { mode: "export", imageId: item.id }; }
   async function saveTags(tags) {
     try { await post(`/api/images/${item.id}/tags`, { tags }); d.tags = tags; loadTags(); } catch (e) { fail(e); }
@@ -103,6 +106,7 @@
           <button class="btn icon" class:fav={item.is_favorite} onclick={favorite} title="Favorite (F)">{item.is_favorite ? "★" : "☆"}</button>
           <button class="btn icon" onclick={exportIt} title="Copy to a folder (Ctrl+E)">⇪</button>
           <button class="btn icon" onclick={rename} title="Rename">✎</button>
+          <button class="btn icon" onclick={hideFolder} title="Hide this folder from the gallery">⊘</button>
           <button class="btn icon danger" onclick={trash} title="Move to trash (Del)">🗑</button>
         </div>
       </header>

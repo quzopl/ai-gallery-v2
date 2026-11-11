@@ -126,9 +126,9 @@ class AddLibraryRequest(BaseModel):
 def list_libraries() -> list[dict]:
     con = db.readonly(DB_PATH)
     rows = con.execute(
-        """SELECT l.id, l.path, l.name, l.added_at, l.last_scan_at,
-                  (SELECT COUNT(*) FROM images i WHERE i.library_id=l.id) AS image_count
-           FROM libraries l ORDER BY l.added_at"""
+        "SELECT l.id, l.path, l.name, l.added_at, l.last_scan_at, "
+        f"(SELECT COUNT(*) FROM images i WHERE i.library_id=l.id AND {VISIBLE}) AS image_count "
+        "FROM libraries l ORDER BY l.added_at"
     ).fetchall()
     con.close()
     return [dict(r) for r in rows]
@@ -195,6 +195,61 @@ def _start_observer(library_id: int, root: Path) -> None:
     state.observers[library_id] = handle
 
 
+# ---------- hidden folders ----------
+
+# Files inside a hidden folder (or below it) stay indexed but are left out of
+# every listing and count. `i` must be the images alias.
+VISIBLE = ("NOT EXISTS (SELECT 1 FROM hidden_folders hf JOIN libraries hl "
+           "ON hl.id = i.library_id WHERE substr(hl.path || '/' || i.rel_path, 1, "
+           "length(hf.path) + 1) = hf.path || '/')")
+
+
+class HideRequest(BaseModel):
+    image_id: int | None = None
+    path: str | None = None
+
+
+@app.get("/api/hidden")
+def list_hidden() -> list[dict]:
+    con = db.readonly(DB_PATH)
+    rows = con.execute(
+        "SELECT hf.id, hf.path, (SELECT COUNT(*) FROM images i JOIN libraries l "
+        "ON l.id = i.library_id WHERE substr(l.path || '/' || i.rel_path, 1, "
+        "length(hf.path) + 1) = hf.path || '/') AS count "
+        "FROM hidden_folders hf ORDER BY hf.path").fetchall()
+    con.close()
+    return [dict(r) for r in rows]
+
+
+@app.post("/api/hidden")
+def hide_folder(req: HideRequest) -> dict:
+    """Hide the folder of an image (image_id) or an explicit folder (path)."""
+    if req.image_id is not None:
+        src, _, _ = _image_source_path(req.image_id)
+        folder = str(src.parent)
+    elif req.path and req.path.strip():
+        folder = str(Path(req.path.strip()).expanduser())
+    else:
+        raise HTTPException(400, "image_id or path required")
+    folder = folder.rstrip("/") or "/"
+
+    def _ins(con):
+        con.execute("INSERT OR IGNORE INTO hidden_folders (path, created_at) "
+                    "VALUES (?, strftime('%s','now'))", (folder,))
+    db._submit(state.writer, _ins)  # type: ignore[arg-type]
+    _broadcast({"type": "hidden_changed"})
+    return {"status": "hidden", "path": folder}
+
+
+@app.delete("/api/hidden/{hidden_id}")
+def unhide_folder(hidden_id: int) -> dict:
+    def _del(con):
+        con.execute("DELETE FROM hidden_folders WHERE id=?", (hidden_id,))
+    db._submit(state.writer, _del)  # type: ignore[arg-type]
+    _broadcast({"type": "hidden_changed"})
+    return {"status": "shown"}
+
+
 # ---------- images ----------
 
 def _encode_cursor(sort_val: str, image_id: int) -> str:
@@ -224,7 +279,7 @@ def list_images(
     source: str | None = None,
 ) -> dict:
     limit = max(1, min(limit, 500))
-    where: list[str] = []
+    where: list[str] = [VISIBLE]
     params: list = []
     join = ""
     if library_id is not None:
@@ -402,8 +457,8 @@ def get_file(image_id: int) -> FileResponse:
 @app.get("/api/facets")
 def facets(library_id: int | None = None) -> dict:
     con = db.readonly(DB_PATH)
-    w = " WHERE library_id = ?" if library_id is not None else ""
     a = " AND i.library_id = ?" if library_id is not None else ""
+    w = f" i WHERE {VISIBLE}{a}"
     p: tuple = (library_id,) if library_id is not None else ()
 
     def group(col: str) -> list[dict]:
@@ -418,7 +473,7 @@ def facets(library_id: int | None = None) -> dict:
     loras = [dict(r) for r in con.execute(
         "SELECT lo.name, COUNT(*) AS count FROM image_loras il "
         "JOIN loras lo ON lo.id = il.lora_id JOIN images i ON i.id = il.image_id "
-        f"WHERE 1=1{a} GROUP BY lo.name ORDER BY count DESC", p).fetchall()]
+        f"WHERE {VISIBLE}{a} GROUP BY lo.name ORDER BY count DESC", p).fetchall()]
     tot = con.execute(
         f"SELECT COUNT(*), COALESCE(SUM(is_favorite),0) FROM images{w}", p).fetchone()
     out = {"models": models, "families": families, "loras": loras,
