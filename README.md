@@ -8,6 +8,9 @@ generate. Version 2.0 is a separate project; the 1.x app is untouched.
 ./run.sh            # http://127.0.0.1:8924
 ```
 
+`./launch.sh` does the same and opens the browser (or just opens it when the
+server already runs) — handy as the target of a desktop shortcut.
+
 Requires `uv`, plus `ffmpeg`/`ffprobe` for video. Node is only needed to
 rebuild the interface (`cd frontend && npm install && npm run build`); the
 built interface is committed in `frontend/dist`.
