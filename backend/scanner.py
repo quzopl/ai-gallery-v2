@@ -29,8 +29,10 @@ def _walk_images(root: Path) -> list[Path]:
     found: list[Path] = []
     for dirpath, _dirs, files in os.walk(root):
         for name in files:
-            if Path(name).suffix.lower() in IMAGE_EXTS:
-                found.append(Path(dirpath) / name)
+            p = Path(dirpath) / name
+            # symlinks could point outside the library — never index them
+            if p.suffix.lower() in IMAGE_EXTS and not p.is_symlink():
+                found.append(p)
     return found
 
 

@@ -728,7 +728,7 @@ def _parse_a1111(params: str, out: dict[str, Any]) -> None:
     out["negative"] = neg or None
 
     if param_idx is not None:
-        kv_line = ", ".join(lines[param_idx:])
+        kv_line = ", ".join(lines[param_idx:])[:8192]   # bounded: regex input is untrusted
         for m in _KV_RE.finditer(kv_line):
             k, v = m.group(1).strip(), m.group(2).strip().strip('"')
             if k == "Steps":

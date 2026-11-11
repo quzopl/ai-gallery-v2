@@ -251,3 +251,25 @@ def test_browse_mkdir_creates_folder(app_with_tmpdb) -> None:
     # parent must exist
     r = client.post("/api/browse/mkdir", json={"parent": str(tmp_path / "nope"), "name": "x"})
     assert r.status_code == 400
+
+
+def test_rejects_foreign_host_and_cross_origin_writes(app_with_tmpdb) -> None:
+    client, tmp_path = app_with_tmpdb
+    assert client.get("/api/health", headers={"host": "evil.example"}).status_code == 403
+    r = client.post("/api/browse/mkdir", json={"parent": str(tmp_path), "name": "x"},
+                    headers={"origin": "http://evil.example"})
+    assert r.status_code == 403 and not (tmp_path / "x").exists()
+    r = client.post("/api/browse/mkdir", json={"parent": str(tmp_path), "name": "x"},
+                    headers={"origin": "http://testserver"})
+    assert r.status_code == 200
+
+
+def test_symlink_outside_library_not_indexed(app_with_tmpdb) -> None:
+    import time
+    client, tmp_path = app_with_tmpdb
+    secret = tmp_path / "secret.png"; _make_comfy_png(secret)
+    lib_path = tmp_path / "photos"; lib_path.mkdir()
+    (lib_path / "link.png").symlink_to(secret)
+    client.post("/api/libraries", json={"path": str(lib_path)})
+    time.sleep(1.2)
+    assert client.get("/api/images").json()["items"] == []

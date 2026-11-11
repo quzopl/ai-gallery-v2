@@ -75,6 +75,35 @@ def _broadcast(msg: dict) -> None:
 
 app = FastAPI(title="AI Gallery")
 
+# The API can read and write local files, so only this machine's own pages may
+# talk to it: reject foreign Host headers (DNS rebinding) and cross-origin
+# writes / WebSockets (CSRF).
+ALLOWED_HOSTS = {"127.0.0.1", "localhost", "[::1]", "testserver"} | {
+    h.strip() for h in os.environ.get("AI_GALLERY_ALLOWED_HOSTS", "").split(",") if h.strip()}
+
+
+def _hostname(value: str) -> str:
+    value = value.split("://", 1)[-1].split("/", 1)[0]
+    return value.rsplit(":", 1)[0] if not value.endswith("]") else value
+
+
+def _request_allowed(headers, *, check_origin: bool) -> bool:
+    host = headers.get("host", "")
+    if _hostname(host) not in ALLOWED_HOSTS:
+        return False
+    origin = headers.get("origin")
+    if check_origin and origin and origin.split("://", 1)[-1] != host:
+        return False
+    return True
+
+
+@app.middleware("http")
+async def _local_only(request, call_next):
+    if not _request_allowed(request.headers,
+                            check_origin=request.method not in ("GET", "HEAD", "OPTIONS")):
+        return JSONResponse({"detail": "forbidden host or origin"}, status_code=403)
+    return await call_next(request)
+
 
 @app.on_event("shutdown")
 def _on_shutdown() -> None:
@@ -325,6 +354,15 @@ def get_image_raw(image_id: int) -> dict:
 from fastapi.responses import FileResponse, Response
 
 
+def _inside(lib_path: str, rel_path: str) -> Path:
+    """Resolved file path, refused when it escapes its library (symlinks, ..)."""
+    root = Path(lib_path).resolve()
+    src = (root / rel_path).resolve()
+    if not src.is_relative_to(root):
+        raise HTTPException(404)
+    return src
+
+
 @app.get("/api/images/{image_id}/thumb")
 def get_thumb(image_id: int) -> Response:
     con = db.readonly(DB_PATH)
@@ -336,7 +374,7 @@ def get_thumb(image_id: int) -> Response:
     con.close()
     if not row:
         raise HTTPException(404)
-    src = Path(row["lib_path"]) / row["rel_path"]
+    src = _inside(row["lib_path"], row["rel_path"])
     if not src.exists():
         raise HTTPException(404, "source file does not exist")
     out = thumbs.get_or_generate(src, sha1=row["sha1"], cache_dir=THUMBS_DIR)
@@ -355,7 +393,7 @@ def get_file(image_id: int) -> FileResponse:
     con.close()
     if not row:
         raise HTTPException(404)
-    src = Path(row["lib_path"]) / row["rel_path"]
+    src = _inside(row["lib_path"], row["rel_path"])
     if not src.exists():
         raise HTTPException(404)
     return FileResponse(src)
@@ -644,6 +682,9 @@ def audit(limit: int = 100) -> list[dict]:
 
 @app.websocket("/ws")
 async def ws_endpoint(ws: WebSocket) -> None:
+    if not _request_allowed(ws.headers, check_origin=True):
+        await ws.close(code=1008)
+        return
     await ws.accept()
     state._loop = asyncio.get_event_loop()
     state.ws_clients.add(ws)
